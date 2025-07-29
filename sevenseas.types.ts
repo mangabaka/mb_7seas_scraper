@@ -28,6 +28,7 @@ export const book_series = z.object({
 	series_link: z.string().url().nullish(),
 	series_type: z.enum(['manga', 'novel', 'light novel', 'art book']),
 	distributor: z.string().nullish(),
+	imprint: z.enum(['Airship', 'Danmei', 'Ghost Ship', 'Siren', 'Steamship', 'Webtoons']).nullish(),
 	series_edition: z.string().nullish(),
 })
 
@@ -42,6 +43,7 @@ const volume = z.object({
 	age_rating: z.enum(['All Ages', 'Teen', 'Ten Plus', 'Older Teen', 'Older Teen (15+)', 'Older Teen (17+)', 'For Readers 17+', 'Mature']).nullish(),
 	edition: z.string().nullish(),
 	description: z.string().nullish(),
+	imprint: z.enum(['Airship', 'Danmei', 'Ghost Ship', 'Siren', 'Steamship', 'Webtoons']).nullish(),
 	isbn: z.string().nullish(),
 	number: z.string().nullish(),
 	release_date: z.coerce.date().nullish(),
@@ -62,6 +64,7 @@ export const SevenSeasMangaBakaSeries = z.object({
 	thumbnail: z.string().url().nullish(),
 	staff: null_array(staff).nullish(),
 	distributor: z.string().nullish(),
+	imprint: z.enum(['Airship', 'Danmei', 'Ghost Ship', 'Siren', 'Steamship', 'Webtoons']).nullish(),
 	genres: null_array(genre).nullish(),
 	age_rating: z.enum(['All Ages', 'Teen', 'Ten Plus', 'Older Teen', 'Older Teen (15+)', 'Older Teen (17+)', 'For Readers 17+', 'Mature']).nullish(),
 	description: z.string().nullish(),
@@ -79,7 +82,8 @@ export const SevenSeasMangaBakaBook = z.object({
 	cover: z.string().url().nullish(),
 	staff: null_array(staff).nullish(),
 	distributor: z.string().nullish(),
-	age_rating: z.string().nullish(),
+	imprint: z.enum(['Airship', 'Danmei', 'Ghost Ship', 'Siren', 'Steamship', 'Webtoons']).nullish(),
+	age_rating: z.enum(['All Ages', 'Teen', 'Ten Plus', 'Older Teen', 'Older Teen (15+)', 'Older Teen (17+)', 'For Readers 17+', 'Mature']).nullish(),
 	edition: z.string().nullish(),
 	description: z.string().nullish(),
 	isbn: z.string().nullish(),

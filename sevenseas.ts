@@ -18,6 +18,15 @@ import { DateTime } from 'luxon'
 //import SourceAnimeNewsNetwork from '../models/SourceAnimeNewsNetwork.model'
 //import { Queue, QueueClient } from '../queue'
 
+enum imprint_enum {
+	'AS-block' = 'Airship',
+	'danmei-block' = 'Danmei',
+	'GS-block' = 'Ghost Ship',
+	'siren-block' = 'Siren',
+	'SS-block' = 'Steamship',
+	'webtoons-block' = 'Webtoons',
+}
+
 enum age_ratings_enum {
 	'allages' = 'All Ages',
 	'teen' = 'Teen',
@@ -181,7 +190,7 @@ export async function parse_series_page(slug: string): Promise<Record<string, an
 	}
 
 	// For fun they also use this for 'Airship' and other imprints
-	const age_rating = get_age_rating(content.find('div.age-rating'))
+	const age_imprint = get_age_rating_or_imprint(content.find('div.age-rating'))
 
 	// Grab all the 'a' tags and sort them
 	const all_a = content.find('#series-meta a')
@@ -205,10 +214,11 @@ export async function parse_series_page(slug: string): Promise<Record<string, an
 	series_details['type'] = title_details['type']
 	series_details['distributor'] = 'Seven Seas Entertainment',
 	series_details['edition'] = title_details['edition']
-	series_details['age_rating'] = age_rating
+	series_details['age_rating'] = age_imprint?.['age_rating']
+	series_details['imprint'] = age_imprint?.['imprint']
 	series_details['description'] = description
 	series_details['staff'] = []
-	// There is no order to the creators, so Story & Art by could have names reversed.
+	// There is no order to the creators, so Story & Art by could have names reversed as in Story is artist name.
 	// If there is only one, then we are safe to use it
 	if (creators.length === 1) {
 		series_details['staff'].push({
@@ -257,6 +267,8 @@ export async function parse_series_page(slug: string): Promise<Record<string, an
 			'digital_date': digital_date ? string_to_date(digital_date).toJSDate() : null,
 			'price': vol_price ? {'value': Number(vol_price), 'iso_code': 'USD'} : null,
 			'distributor': 'Seven Seas Entertainment',
+			'imprint': age_imprint?.['imprint'],
+			'age_rating': age_imprint?.['age_rating'],
 			'type': format,
 			'isbn': isbn
 		})
@@ -286,21 +298,14 @@ export async function parse_book_page(slug: string): Promise<Record<string, any>
 	const series_url_text = series_title_ele?.children()?.attr('href')
 	const series_url = series_url_text? new URL(series_url_text) : null
 
-	const series = {
-		'series_title': series_title,
-		'series_slug': series_url?.pathname.slice(8, -1),
-		'series_link': series_url?.toString(),
-		'series_type': series_type,
-		'distributor': 'Seven Seas Entertainment',
-		'series_edition' : series_edition
-	}
-
 	const title_raw = content.find('.topper').text().replace('Book: ', '')
-	const title = clean_title(title_raw, series_title)
+	const title = clean_title(title_raw, series_title_details)
 	const vol_title_match = /(.*)(?:\svol.*?([\d-]+))/i.exec(title_raw)
 	const vol_num = vol_title_match?.[2] ? vol_title_match[2] : null
 	const cover = content.find('div#volume-cover img')?.attr('src')
-	const age_rating = get_age_rating(content.find('div.age-rating'))
+	const age_imprint = get_age_rating_or_imprint(content.find('div.age-rating'))
+	const age_rating = age_imprint ? age_imprint['age_rating'] : null
+	const imprint = age_imprint? age_imprint['imprint'] : null
 
 	const story_art_by = content.find('b:contains("Story &")').next()
 	const story_by = content.find('b:contains("Story by")').parent()
@@ -374,6 +379,16 @@ export async function parse_book_page(slug: string): Promise<Record<string, any>
   .get()
   .join('\n\n')
 
+	const series: Record<string, any> = {
+		'series_title': series_title,
+		'series_slug': series_url?.pathname.slice(8, -1),
+		'series_link': series_url?.toString(),
+		'series_type': series_type,
+		'distributor': 'Seven Seas Entertainment',
+		'imprint': imprint,
+		'series_edition' : series_edition
+	}
+
 	const book: Record<string, any> = {
 		'series': series,
 		'title': title != series_title ? title : null,
@@ -382,6 +397,7 @@ export async function parse_book_page(slug: string): Promise<Record<string, any>
 		'cover': cover,
 		'age_rating': age_rating,
 		'distributor': 'Seven Seas Entertainment',
+		'imprint': imprint,
 		'type': series_title_details['type'],
 		'edition': series_title_details['edition'],
 		'staff': staff,
@@ -435,10 +451,48 @@ export async function all_tags() {
   }	
 }
 
-function clean_series_title(series_title: string): Record<string, any> {
+function get_type(title_text: string): string {
 	// Types: Manga, Novel, Light Novel, Comic, The Comic / Manhua, Omnibus, New Edition Rerelease, Omnibus Collection, 
 	// Illustrated Novel, WEBTOON, Kakukaku Shikajika, Bloom Into You (Light Novel): Regarding Saeki Sayaka,
 	// Heroine? Saint? No, I’m an All-Works Maid (And Proud of It)! (Light Novel), Series, Hardcover, Memoir, 
+	switch (title_text) {
+		case 'Light Novel':
+			return 'light novel'
+		case 'Novel':
+		case 'Illustrated Novel':
+			return 'novel'
+		case 'Comic':
+			return 'webtoon'
+		case 'WEBTOON':
+			return 'webtoon'
+		case 'The Comic / Manhua':
+			return 'manhau'
+		case 'The Comic':
+			return 'webtoon'
+		case 'Series':
+			return 'manga'
+		case 'Memoir':
+			return 'novel'
+		default:
+			return 'manga'
+	}
+}
+
+function get_edition(title_text: string): string | null {
+	switch (title_text) {
+		case 'Omnibus':
+		case 'Omnibus Collection':
+			return 'omnibus'
+		case 'Hardcover':
+			return 'hardcover'
+		case 'New Edition Rerelease':
+			return 'new_edition'
+		default:
+			return null
+	}
+}
+
+function clean_series_title(series_title: string): Record<string, any> {
 	const series_title_main = /^(?<title>.*)\s\((?<type>.*)\)/.exec(series_title)
 	let series_title_clean: string = series_title
 	let series_type: string = 'manga'
@@ -446,74 +500,45 @@ function clean_series_title(series_title: string): Record<string, any> {
 	if (series_title_main && series_title_main.groups) {
 		series_title_clean = series_title_main.groups.title
 		if (series_title_main.groups.type) {
-			switch (series_title_main.groups.type) {
-				case 'Light Novel':
-					series_type = 'light novel'
-					break
-				case 'Novel':
-				case 'Illustrated Novel':
-					series_type = 'novel'
-					break
-				case 'Comic':
-					series_type = 'webtoon'
-					break
-				case 'WEBTOON':
-					series_type = 'webtoon'
-					break
-				case 'The Comic / Manhua':
-					series_type = 'manhau'
-					break
-				case 'The Comic':
-					series_type = 'webtoon'
-					break
-				case 'Series':
-					series_type = 'manga'
-					break
-				case 'Memoir':
-					series_type = 'novel'
-					break
-				default:
-					series_type = 'manga'
-			}
+			series_type = get_type(series_title_main.groups.type)
 		}
-
 		if (series_title_main.groups.type) {
-			switch (series_title_main.groups.type) {
-				case 'Omnibus':
-				case 'Omnibus Collection':
-					edition = 'omnibus'
-					break
-				case 'Hardcover':
-					edition = 'hardcover'
-					break
-				case 'New Edition Rerelease':
-					edition = 'new_edition'
-			}
+			edition = get_edition(series_title_main.groups.type)
 		}
 		
 	}
 	return {'series_title': series_title_clean, 'type': series_type, 'edition': edition}
 }
 
-function clean_title(book_title: string, series_title: string = '') {
-	const book_title_clean = book_title.replace(series_title, '')
-	const book_title_match = /(\w.*)(?:\sVol.*)/i.exec(book_title_clean)
-	const book_title_cleaned = book_title_match && book_title_match[1] ? clean_series_title(book_title_match[1]) : null
-	return book_title_cleaned && book_title_cleaned['series_title'] ? book_title_cleaned['series_title'].trim() : null
+function clean_title(book_title: string, series_match: Record<string, any>) {
+	// This is disgusting...
+	let book_title_clean = book_title
+	if (series_match && series_match['series_title']) {
+		book_title_clean = book_title_clean.replace(series_match['series_title'], '').trim()
+	}
+	if (series_match && series_match['type']) {
+		const regex_type = new RegExp('\\(' + series_match['type'] + '\\)', 'i')
+		book_title_clean = book_title_clean.replace(regex_type, '').trim()
+	}
+	book_title_clean = book_title_clean.replace(/vol.*/i, '').trim()
+	// Finally remove any non-words at the start like :, -, etc.
+	book_title_clean = book_title_clean.replace(/\W/, '').trim()
+	return book_title_clean ? book_title_clean : null
 }
 
-function get_age_rating(ages: any | null): string | null {
+function get_age_rating_or_imprint(ages: any | null): Record<string, string | null> | null {
 	if (ages === null) {
-		return ''
+		return null
 	}
 	// For fun they also use this for 'Airship' and other imprints
-	let age_rating = null
+	const result: Record<string, string | null> = {}
 	for (const a_r of ages) {
 		const a_r_id: string = a_r.attribs?.['id'] || ''
-		const enumKey = a_r_id as keyof typeof age_ratings_enum
-		age_rating = age_ratings_enum[enumKey] ? age_ratings_enum[enumKey] : null
+		const id_key = a_r_id as keyof typeof Enumerator
+		result['age_rating'] ||=  age_ratings_enum[id_key] || null
+		result['imprint'] ||= imprint_enum[id_key] || null
 	}
-	return age_rating
+	return result
 }
 
 /*async function author_name_link_to_id(author_name: string): Promise<Record<string, string> | null> {
