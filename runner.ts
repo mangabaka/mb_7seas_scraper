@@ -1,4 +1,4 @@
-import { series_api, all_authors_page_parse, all_series_page_parse, parse_series_page, parse_book_page } from './sevenseas.js'
+import { series_api, all_authors_page_parse, all_series_page_parse, book_api, parse_series_page, parse_book_page } from './sevenseas.js'
 import { string_to_date } from './date.js'
 import axios from 'axios'
 import * as cheerio from 'cheerio'
@@ -66,6 +66,14 @@ if (cmd == 'book') {
     const all_series = await all_series_page_parse()
     const file_path = './data/all_series_' + Date.now().toString() + '.json'
     saveJsonToFileAsync(all_series, file_path)
+} else if (cmd == 'book_api') {
+    const date_after = string_to_date(url).toJSDate()
+    if (date_after === null) {
+        throw new Error(`Invalid date: ${url}`)
+    }
+    const all_books = await book_api(date_after)
+    const file_path = './data/all_books_' + Date.now().toString() + '.json'
+    saveJsonToFileAsync(all_books, file_path)
 } else if (cmd == 'full_series') {
     const series_details = await parse_series_page(url)
     const file_path = './data/series_full_' + url + '.json'
@@ -75,33 +83,3 @@ if (cmd == 'book') {
     const file_path = './data/authors.json'
     saveJsonToFileAsync(authors, file_path)
 }
-
-/*else if (cmd == 'new') {
-    const new_releases = await new_pending_releases();
-    const file_path = './data/manga_new_releases_' + Date.now().toString() + '.json'
-    saveJsonToFileAsync(new_releases, file_path)
-}  else if (cmd == 'series') {
-    // Expects series ID (a number)
-    const series_details = await bwg_parse_series_json(parseInt(url))
-    const file_path = './data/manga_series_' + url + '.json'
-    saveJsonToFileAsync(series_details, file_path)
-} else if (cmd == 'full_series') {
-    // Expects series ID (a number)
-    const series_details = await full_series_data(parseInt(url))
-    const file_path = './data/series_full_' + url + '.json'
-    saveJsonToFileAsync(series_details, file_path)
-} else if (cmd == 'book_api') {
-    // Expects book ID(s) (splits IDs by comma: uuid1,uuid2,uuid3)
-    const book_ids = url.split(',')
-    const book_details = await bwg_parse_book_api(book_ids)
-    const file_path = './data/book_' + url + '.json'
-    saveJsonToFileAsync(book_details, file_path)
-} else if (cmd == 'pubs') {
-    const publishers = await all_publishers_page_parse()
-    const file_path = './data/publishers.json'
-    saveJsonToFileAsync(publishers, file_path)
-} else if (cmd == 'authors') {
-    const authors = await all_authors_page_parse()
-    const file_path = './data/authors.json'
-    saveJsonToFileAsync(authors, file_path)
-}*/

@@ -134,6 +134,73 @@ export async function series_api(date_after: Date | null = null): Promise<Record
 	return all_series
 }
 
+export async function book_api(date_after: Date | null = null): Promise<Record<string, any>[]> {
+	// Use date_after to get modified series
+	let page = 1
+
+	const all_books: Record<string, any>[] = []
+
+	let url = `https://sevenseasentertainment.com/wp-json/wp/v2/books?orderby=title&order=asc&per_page=100&page=`
+	if (date_after) {
+		url = `https://sevenseasentertainment.com/wp-json/wp/v2/books?orderby=title&after=${date_after.toISOString()}&order=asc&per_page=100&page=`
+	}
+
+	while (page != -1) {
+		try {
+			const response = await fetch(url + page.toString())
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`)
+			}
+
+			const data = await response.json()
+			// No way to know next page etc.
+			if (data.length === 0) {
+				break
+			} else if (data.length <100) {
+				// If we don't get the full 100, presume last page
+				page = -1
+			} else {
+				page ++
+			}
+
+			for (const item of data) {
+				//const series: Record<string, any> = {}
+				const book_title_details = clean_series_title(item['title']['rendered'])
+				const vol_title_match = /(.*)(?:\svol.*?([\d-]+))/i.exec(item['title']['rendered'])
+				const vol_num = vol_title_match?.[2] ? vol_title_match[2] : null
+				const status = item['status'] // publish etc.
+				const series_url = new URL(item['link'])
+				const description_raw = item['content']['rendered']?.replaceAll('<p>', '').replaceAll('</p>', '\n').trim()
+				// Strip <strong> as it seems to be mostly blurb and links
+				const description = /(?:^.*\<\/strong\>$)?(.*)/gms.exec(description_raw)?.[1].trim().replaceAll('\n\n', '\n') || null
+
+				const book = {
+					'book_id': item['id'],
+					'book_slug': item['slug'],
+					'book_title': book_title_details['series_title'],
+					'book_number': vol_num,
+					'book_status': status,
+					'book_type': book_title_details['type'],
+					'book_edition': book_title_details['edition'],
+					'book_link': series_url.toString(),
+					'book_description': description,
+					'book_date': item['date'],
+					'book_modified': item['modified'],
+				}
+
+				all_books.push(book)
+			}
+
+		} catch (error) {
+			console.error(`Error fetching all book API: `, error instanceof Error ? error.message : error);
+			process.exit(1)
+		}
+	}
+	
+	return all_books
+}
+
 export async function all_series_page_parse(): Promise<Record<string, any>[]> {
 	const all_series: Record<string, any>[] = []
 
